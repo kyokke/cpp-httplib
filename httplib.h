@@ -1255,7 +1255,7 @@ inline bool wait_until_socket_is_ready(socket_t sock, time_t sec, time_t usec) {
     int error = 0;
     socklen_t len = sizeof(error);
     auto res = getsockopt(sock, SOL_SOCKET, SO_ERROR,
-                      reinterpret_cast<char *>(&error), &len);
+                          reinterpret_cast<char *>(&error), &len);
     return res >= 0 && !error;
   }
   return false;
@@ -1419,6 +1419,18 @@ socket_t create_socket(const char *host, int port, Fn fn,
     return INVALID_SOCKET;
   }
 
+  std::cout << "B --------" << std::endl;
+  for (auto rp = result; rp; rp = rp->ai_next) {
+    if (rp->ai_family == AF_INET) {
+      std::cout << "IP4" << std::endl;
+    } else if (rp->ai_family == AF_INET6) {
+      std::cout << "IP6" << std::endl;
+    } else {
+      std::cout << "???" << std::endl;
+    }
+  }
+  std::cout << "E --------" << std::endl;
+
   for (auto rp = result; rp; rp = rp->ai_next) {
     // Create a socket
 #ifdef _WIN32
@@ -1458,6 +1470,9 @@ socket_t create_socket(const char *host, int port, Fn fn,
     setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, reinterpret_cast<char *>(&yes),
                sizeof(yes));
 #endif
+    int no = 0;
+    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<char *>(&no),
+               sizeof(no));
 
     // bind or connect
     if (fn(sock, *rp)) {
@@ -2615,20 +2630,18 @@ inline std::string SHA_512(const std::string &s) {
 }
 #endif
 
-template <typename T>
-inline ssize_t handle_EINTR(T fn) {
+template <typename T> inline ssize_t handle_EINTR(T fn) {
   ssize_t res = false;
   while (true) {
     res = fn();
-    if (res < 0 && errno == EINTR) {
-      continue;
-    }
+    if (res < 0 && errno == EINTR) { continue; }
     break;
   }
   return res;
 }
 
-#define HANDLE_EINTR(method, ...) (handle_EINTR([&]() { return method(__VA_ARGS__); }))
+#define HANDLE_EINTR(method, ...)                                              \
+  (handle_EINTR([&]() { return method(__VA_ARGS__); }))
 
 #ifdef _WIN32
 class WSInit {
